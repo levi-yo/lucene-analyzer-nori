@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,7 +17,9 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ko.KoreanAnalyzer;
 import org.apache.lucene.analysis.ko.KoreanPartOfSpeechStopFilter;
 import org.apache.lucene.analysis.ko.KoreanTokenizer;
+import org.apache.lucene.analysis.ko.KoreanTokenizer.DecompoundMode;
 import org.apache.lucene.analysis.ko.POS;
+import org.apache.lucene.analysis.ko.POS.Tag;
 import org.apache.lucene.analysis.ko.dict.UserDictionary;
 import org.apache.lucene.analysis.ko.tokenattributes.PartOfSpeechAttribute;
 import org.apache.lucene.analysis.ko.tokenattributes.ReadingAttribute;
@@ -73,8 +76,6 @@ public class NoriAnalyzer {
 	
 	private static final String USER_DIC_PATH = "/userdict/userdict_ko.txt";
 	
-	private String stringOfResult;
-	
 	private List<AnalyzingTerm> termsOfResult;
 	
 	//텀 속성확인
@@ -95,52 +96,90 @@ public class NoriAnalyzer {
 	//Reading 속성확인
 	private ReadingAttribute readingAttr ;
 	
-	private Analyzer analyzer ;
-	
 	private UserDictionary userDict;
 	
+	private DecompoundMode decompoundMode;
+	
+	private Set<POS.Tag> stopTags;
+	
+	private boolean outputUnknownUnigrams;
+	
+	/**
+	 * Default Constructor. So all attributes is default.
+	 */
 	public NoriAnalyzer() {
-		this(AnalyzerMode.BASIC);
+		this(AnalyzerMode.BASIC,null);
 	}
 	
-	public NoriAnalyzer(AnalyzerMode mode) {
+	/**
+	 * BASIC - DecompoundMode.MIXED,BASIC_STOP_TAGS,outputUnknownUnigrams=false
+	 * @param mode
+	 */
+	public NoriAnalyzer(AnalyzerMode mode,String userDictPath) {
 		
 		try {
+			this.userDict = UserDictionary.open(new InputStreamReader(this.getClass().getResourceAsStream(USER_DIC_PATH)));
 			if(mode.equals(AnalyzerMode.BASIC)) {
-				userDict = UserDictionary.open(new FileReader(this.getClass().getResource(USER_DIC_PATH).getFile()));
-				this.analyzer = new KoreanAnalyzer(userDict
-												  ,KoreanTokenizer.DecompoundMode.MIXED
-												  ,BASIC_STOP_TAGS
-												  ,false);
+				this.decompoundMode = decompoundMode.MIXED;
+				this.stopTags = BASIC_STOP_TAGS;
+				this.outputUnknownUnigrams = false;
 			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
-			LOGGER.error("can not open userDict !");
-			this.analyzer = new KoreanAnalyzer(null
-					  ,KoreanTokenizer.DecompoundMode.MIXED
-					  ,BASIC_STOP_TAGS
-					  ,false);
+			LOGGER.error("can not open userDict, so not used user dictionary !");
+			this.userDict = null;
+			this.decompoundMode = decompoundMode.MIXED;
+			this.stopTags = BASIC_STOP_TAGS;
+			this.outputUnknownUnigrams = false;
 		} 
 		
 	}
 	
+	/**
+	 * Custom Analyzer setting. So all parameter required.
+	 * 
+	 * @param userDict
+	 * @param decompoundMode
+	 * @param stopTags
+	 * @param outputUnknownUnigrams
+	 */
+	public NoriAnalyzer(UserDictionary userDict, DecompoundMode decompoundMode, Set<Tag> stopTags,
+			boolean outputUnknownUnigrams) {
+		this.userDict = userDict;
+		this.decompoundMode = decompoundMode;
+		this.stopTags = stopTags;
+		this.outputUnknownUnigrams = outputUnknownUnigrams;
+	}
+
 	/**
 	 * 형태소분석 결과로 하나의 연결된 문자열을 반환값으로 준다.
 	 * @param text - 분석하길 원하는 문자열
 	 * @return
 	 * @throws IOException 
 	 */
-	public String analyzeForString(String text) throws IOException {
+	public String analyzeForString(String text) {
+		
 		StringBuffer buffer = new StringBuffer();
 		
-		displayTokens(analyzer, text);
-		
-		for(AnalyzingTerm term : termsOfResult) {
-			buffer.append(term.getToken()+" ");
+		try(Analyzer analyzer = new KoreanAnalyzer(userDict, decompoundMode, stopTags, outputUnknownUnigrams);){
+			
+			displayTokens(analyzer, text);
+			
+			for(AnalyzingTerm term : termsOfResult) {
+				
+				buffer.append(term.getToken()+" ");
+			
+			}
+			
+			return buffer.toString().trim();
+			
+		}catch (Exception e) {
+			// TODO: handle exception
+			LOGGER.error("NoriAnalyzer.analyzeForString() :::: {}",e);
+			
+			return null;
 		}
 		
-		
-		return buffer.toString().trim();
 	}
 	
 	/**
@@ -151,16 +190,32 @@ public class NoriAnalyzer {
 	 */
 	public List<AnalyzingTerm> analyzeForTerms(String text) throws IOException{
 		
-		displayTokens(analyzer, text);
-		
-		return termsOfResult;
+		try(Analyzer analyzer = new KoreanAnalyzer(userDict, decompoundMode, stopTags, outputUnknownUnigrams);){
+			
+			displayTokens(analyzer, text);
+			
+			return termsOfResult;
+			
+		}catch (Exception e) {
+			// TODO: handle exception
+			LOGGER.error("NoriAnalyzer.analyzeForTerms() :::: {}",e);
+			
+			return null;
+		}
 	}
 	
 	
 	private void displayTokens(Analyzer analyzer, String text) throws IOException{
+		
 		displayTokens(analyzer.tokenStream("result", new StringReader(text)));
+		
 	}
 	
+	/**
+	 * TokenStream을 받아서 형태소분석된 토큰을 꺼낸다.
+	 * @param stream
+	 * @throws IOException
+	 */
 	private void displayTokens(TokenStream stream) throws IOException{
 		
 		charAttr = stream.addAttribute(CharTermAttribute.class);
