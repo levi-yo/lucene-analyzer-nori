@@ -145,6 +145,7 @@ public class NoriAnalyzer {
 	 */
 	public NoriAnalyzer(UserDictionary userDict, DecompoundMode decompoundMode, Set<Tag> stopTags,
 			boolean outputUnknownUnigrams) {
+		
 		this.userDict = userDict;
 		this.decompoundMode = decompoundMode;
 		this.stopTags = stopTags;

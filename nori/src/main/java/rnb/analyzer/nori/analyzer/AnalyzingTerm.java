@@ -1,5 +1,17 @@
 package rnb.analyzer.nori.analyzer;
 
+/**
+ * 분석된 토큰을 담는 객체.
+ * 
+ * token - 분리된 토큰
+ * position - 토큰의 위치
+ * startOffset - 토큰의 시작 오프셋
+ * endOffset - 토큰의 끝 오프셋
+ * tokenType - token type
+ * partOfSpeech,leftPOS,rightPOS - 토큰의 품사
+ * @author yun-yeoseong
+ *
+ */
 public class AnalyzingTerm {
 	
 	public static final String DEFAULT_TYPE = "word";
